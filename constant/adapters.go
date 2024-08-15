@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"net"
+	"net/http"
 	"net/netip"
 	"sync"
 	"time"
@@ -163,6 +164,7 @@ type Proxy interface {
 	ExtraDelayHistories() map[string]ProxyState
 	LastDelayForTestUrl(url string) uint16
 	URLTest(ctx context.Context, url string, expectedStatus utils.IntRanges[uint16]) (uint16, error)
+	URLTestWithHeader(ctx context.Context, url string, header http.Header, expectedStatus utils.IntRanges[uint16]) (uint16, error)
 
 	// Deprecated: use DialContext instead.
 	Dial(metadata *Metadata) (Conn, error)

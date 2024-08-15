@@ -144,7 +144,11 @@ func (f *Fallback) Set(name string) error {
 		ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*time.Duration(5000))
 		defer cancel()
 		expectedStatus, _ := utils.NewUnsignedRanges[uint16](f.expectedStatus)
-		_, _ = p.URLTest(ctx, f.testUrl, expectedStatus)
+		if f.testUrlHeader != nil {
+			_, _ = p.URLTestWithHeader(ctx, f.testUrl, f.testUrlHeader, expectedStatus)
+		} else {
+			_, _ = p.URLTest(ctx, f.testUrl, expectedStatus)
+		}
 	}
 
 	return nil

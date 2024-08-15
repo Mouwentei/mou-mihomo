@@ -266,6 +266,115 @@ func (p *Proxy) URLTest(ctx context.Context, url string, expectedStatus utils.In
 	t = uint16(time.Since(start) / time.Millisecond)
 	return
 }
+
+// URLTestWithHeader get the delay for the specified URL
+// implements C.Proxy
+func (p *Proxy) URLTestWithHeader(ctx context.Context, url string, header http.Header, expectedStatus utils.IntRanges[uint16]) (t uint16, err error) {
+	var satisfied bool
+
+	defer func() {
+		alive := err == nil
+		record := C.DelayHistory{Time: time.Now()}
+		if alive {
+			record.Delay = t
+		}
+
+		p.alive.Store(alive)
+		p.history.Put(record)
+		if p.history.Len() > defaultHistoriesNum {
+			p.history.Pop()
+		}
+
+		state, ok := p.extra.Load(url)
+		if !ok {
+			state = &internalProxyState{
+				history: queue.New[C.DelayHistory](defaultHistoriesNum),
+				alive:   atomic.NewBool(true),
+			}
+			p.extra.Store(url, state)
+		}
+
+		if !satisfied {
+			record.Delay = 0
+			alive = false
+		}
+
+		state.alive.Store(alive)
+		state.history.Put(record)
+		if state.history.Len() > defaultHistoriesNum {
+			state.history.Pop()
+		}
+
+	}()
+
+	unifiedDelay := UnifiedDelay.Load()
+
+	addr, err := urlToMetadata(url)
+	if err != nil {
+		return
+	}
+
+	start := time.Now()
+	instance, err := p.DialContext(ctx, &addr)
+	if err != nil {
+		return
+	}
+	defer func() {
+		_ = instance.Close()
+	}()
+
+	req, err := http.NewRequest(http.MethodHead, url, nil)
+	if err != nil {
+		return
+	}
+	req = req.WithContext(ctx)
+	if header != nil {
+		req.Header = header
+	}
+	transport := &http.Transport{
+		DialContext: func(context.Context, string, string) (net.Conn, error) {
+			return instance, nil
+		},
+		// from http.DefaultTransport
+		MaxIdleConns:          100,
+		IdleConnTimeout:       90 * time.Second,
+		TLSHandshakeTimeout:   10 * time.Second,
+		ExpectContinueTimeout: 1 * time.Second,
+		TLSClientConfig:       ca.GetGlobalTLSConfig(&tls.Config{}),
+	}
+
+	client := http.Client{
+		Timeout:   30 * time.Second,
+		Transport: transport,
+		CheckRedirect: func(req *http.Request, via []*http.Request) error {
+			return http.ErrUseLastResponse
+		},
+	}
+
+	defer client.CloseIdleConnections()
+
+	resp, err := client.Do(req)
+
+	if err != nil {
+		return
+	}
+
+	_ = resp.Body.Close()
+
+	if unifiedDelay {
+		second := time.Now()
+		resp, err = client.Do(req)
+		if err == nil {
+			_ = resp.Body.Close()
+			start = second
+		}
+	}
+
+	satisfied = resp != nil && (expectedStatus == nil || expectedStatus.Check(uint16(resp.StatusCode)))
+	t = uint16(time.Since(start) / time.Millisecond)
+	return
+}
+
 func NewProxy(adapter C.ProxyAdapter) *Proxy {
 	return &Proxy{
 		ProxyAdapter: adapter,
