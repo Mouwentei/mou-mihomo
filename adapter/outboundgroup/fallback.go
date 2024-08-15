@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"net/http"
 	"time"
 
 	"github.com/metacubex/mihomo/adapter/outbound"
@@ -23,6 +24,7 @@ type Fallback struct {
 	expectedStatus string
 	Hidden         bool
 	Icon           string
+	header         http.Header
 }
 
 func (f *Fallback) Now() string {
