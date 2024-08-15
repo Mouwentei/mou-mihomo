@@ -24,7 +24,7 @@ type Fallback struct {
 	expectedStatus string
 	Hidden         bool
 	Icon           string
-	header         http.Header
+	testUrlHeader  http.Header
 }
 
 func (f *Fallback) Now() string {
@@ -155,6 +155,13 @@ func (f *Fallback) ForceSet(name string) {
 }
 
 func NewFallback(option *GroupCommonOption, providers []provider.ProxyProvider) *Fallback {
+	testUrlHeader := func() http.Header {
+		if len(option.TestUrlHeader) > 0 {
+			header, _ := utils.ConvertJSONToHeader(option.TestUrlHeader)
+			return header
+		}
+		return nil
+	}()
 	return &Fallback{
 		GroupBase: NewGroupBase(GroupBaseOption{
 			outbound.BaseOption{
@@ -175,5 +182,6 @@ func NewFallback(option *GroupCommonOption, providers []provider.ProxyProvider) 
 		expectedStatus: option.ExpectedStatus,
 		Hidden:         option.Hidden,
 		Icon:           option.Icon,
+		testUrlHeader:  testUrlHeader,
 	}
 }

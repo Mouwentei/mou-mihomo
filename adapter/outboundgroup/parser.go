@@ -43,6 +43,7 @@ type GroupCommonOption struct {
 	IncludeAllProviders bool     `group:"include-all-providers,omitempty"`
 	Hidden              bool     `group:"hidden,omitempty"`
 	Icon                string   `group:"icon,omitempty"`
+	TestUrlHeader       string   `group:"test-url-header,omitempty"`
 }
 
 func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, providersMap map[string]types.ProxyProvider, AllProxies []string, AllProviders []string) (C.ProxyAdapter, error) {
@@ -158,6 +159,13 @@ func ParseProxyGroup(config map[string]any, proxyMap map[string]C.Proxy, provide
 
 		providers = append([]types.ProxyProvider{pd}, providers...)
 		providersMap[groupName] = pd
+	}
+
+	if len(groupOption.TestUrlHeader) != 0 {
+		_, err = utils.ConvertJSONToHeader(groupOption.TestUrlHeader)
+		if err != nil {
+			return nil, fmt.Errorf("%s: %w", groupName, err)
+		}
 	}
 
 	var group C.ProxyAdapter
